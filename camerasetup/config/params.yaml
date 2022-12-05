@@ -1,0 +1,23 @@
+camerainfo:
+  ros__parameters:
+    image_width: 320
+    image_height: 240
+    camera_name: narrow_stereo
+    camera_matrix K:
+      rows: 3
+      cols: 3
+      data: [326.173156, 0.000000, 142.152465,0.000000, 325.057891, 100.344205, 0.000000, 0.000000, 1.000000]
+    distortion_model : plumb_bob
+    distortion_coefficients D:
+      rows: 1
+      cols: 5
+      data: [-0.090308, 0.298195, -0.008055, -0.007610, 0.0000]
+      
+    rectification_matrix R:
+      rows: 3
+      cols: 3
+      data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
+    projection_matrix P:
+      rows: 3
+      cols: 4
+      data: [327.801178, 0.000000, 140.863108, 0.000000, 0.000000, 326.170898, 99.016313, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]

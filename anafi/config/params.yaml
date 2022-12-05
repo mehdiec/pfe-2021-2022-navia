@@ -1,0 +1,6 @@
+anafi_driver:
+  ros__parameters:
+    drone_IP : '192.168.42.1'
+    max_tilt : 0.77
+    max_vert_spd : 0.25
+    max_rotation_speed : 0.30

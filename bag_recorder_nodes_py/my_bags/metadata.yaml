@@ -1,0 +1,25 @@
+rosbag2_bagfile_information:
+  version: 4
+  storage_identifier: sqlite3
+  relative_file_paths:
+    - my_bags_0.db3
+  duration:
+    nanoseconds: 2983773264
+  starting_time:
+    nanoseconds_since_epoch: 1646837963685428700
+  message_count: 8
+  topics_with_message_count:
+    - topic_metadata:
+        name: linear_z
+        type: std_msgs/msg/Float32
+        serialization_format: cdr
+        offered_qos_profiles: ""
+      message_count: 4
+    - topic_metadata:
+        name: initial_image
+        type: sensor_msgs/msg/CompressedImage
+        serialization_format: cdr
+        offered_qos_profiles: ""
+      message_count: 4
+  compression_format: ""
+  compression_mode: ""

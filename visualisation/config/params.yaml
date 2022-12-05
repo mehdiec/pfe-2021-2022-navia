@@ -1,0 +1,5 @@
+image_segmentation:
+  ros__parameters:
+    focale : 78e-3
+    input_topic : 'anafi/segmented_image'
+    output_topic : 'pointCloud'

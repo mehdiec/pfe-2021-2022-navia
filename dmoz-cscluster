@@ -1,0 +1,1478 @@
+#!/bin/bash
+
+# contributeurs / contributors :
+
+# Jeremy Fix (Loria / CentraleSupelec)
+# Joël Legrand (Loria / CentraleSupelec)
+
+# Ce logiciel est régi par la licence CeCILL soumise au droit français
+# et respectant les principes de diffusion des logiciels libres. Vous
+# pouvez utiliser, modifier et/ou redistribuer ce programme sous les
+# conditions de la licence CeCILL telle que diffusée par le CEA, le
+# CNRS et l'INRIA sur le site https://cecill.info.  En contrepartie de
+# l'accessibilité au code source et des droits de copie, de
+# modification et de redistribution accordés par cette licence, il
+# n'est offert aux utilisateurs qu'une garantie limitée. Pour les
+# mêmes raisons, seule une responsabilité restreinte pèse sur l'auteur
+# du programme, le titulaire des droits patrimoniaux et les concédants
+# successifs.  A cet égard l'attention de l'utilisateur est attirée
+# sur les risques associés au chargement, à l'utilisation, à la
+# modification et/ou au développement et à la reproduction du logiciel
+# par l'utilisateur étant donné sa spécificité de logiciel libre, qui
+# peut le rendre complexe à manipuler et qui le réserve donc à des
+# développeurs et des professionnels avertis possédant des
+# connaissances informatiques approfondies.  Les utilisateurs sont
+# donc invités à charger et tester l'adéquation du logiciel à leurs
+# besoins dans des conditions permettant d'assurer la sécurité de
+# leurs systèmes et ou de leurs données et, plus généralement, à
+# l'utiliser et l'exploiter dans les mêmes conditions de sécurité.  Le
+# fait que vous puissiez accéder à cet en-tête signifie que vous avez
+# pris connaissance de la licence CeCILL-B, et que vous en avez
+# accepté les termes.
+
+# This software is governed by the CeCILL license under French law and
+# abiding by the rules of distribution of free software.  You can use,
+# modify and/ or redistribute the software under the terms of the
+# CeCILL license as circulated by CEA, CNRS and INRIA at the following
+# URL https://cecill.info.  As a counterpart to the access to the
+# source code and rights to copy, modify and redistribute granted by
+# the license, users are provided only with a limited warranty and the
+# software's author, the holder of the economic rights, and the
+# successive licensors have only limited liability.  In this respect,
+# the user's attention is drawn to the risks associated with loading,
+# using, modifying and/or developing or reproducing the software by
+# the user in light of its specific status of free software, that may
+# mean that it is complicated to manipulate,and that also therefore
+# means that it is reserved for developers and experienced
+# professionals having in-depth computer knowledge. Users are
+# therefore encouraged to load and test the software's suitability as
+# regards their requirements in conditions enabling the security of
+# their systems and/or data to be ensured and, more generally, to use
+# and operate it in the same conditions as regards security.  The fact
+# that you are presently reading this means that you have had
+# knowledge of the CeCILL-B license and that you accept its terms.
+
+# Script adatped from the g5k script
+# https://gitlab.inria.fr/jolegran/g5k-scripts 
+
+# If we have "declare -A" available , i.e. arrays
+# which is not available for every bash version 
+
+# declare -A oar_properties
+# oar_properties[uSkynet]="(cluster='uSkynet' and host in ('sh01', 'sh02', 'sh03', 'sh04','sh05','sh06', 'sh07','sh08','sh09','sh10','sh11', 'sh12','sh13','sh14','sh15','sh16'))"
+# oar_properties[cameron]="(cluster='cameron' and host in ('cam00', 'cam01', 'cam02', 'cam03', 'cam04','cam05','cam06', 'cam07','cam08','cam09','cam10','cam11', 'cam12','cam13','cam14','cam15','cam16'))"
+# oar_properties[tx]="(cluster='tx' and host in ('tx00', 'tx01', 'tx02', 'tx03', 'tx04','tx05','tx06', 'tx07','tx08','tx09','tx10','tx11', 'tx12','tx13','tx14','tx15','tx16'))"
+# oar_properties[sarah]="(cluster='sarah' and host in ('sar01', 'sar02', 'sar03', 'sar04','sar05','sar06', 'sar07','sar08','sar09','sar10','sar11', 'sar12','sar13','sar14','sar15','sar16', 'sar17','sar18','sar19','sar20','sar21', 'sar22','sar23','sar24','sar25','sar26','sar27','sar28','sar29','sar30','sar31', 'sar32'))"
+
+# We could then be using : 
+# book_node "${oar_properties[$CLUSTER]}"
+
+# Turn verbose on
+# set -x
+
+usage_m="usage :  cscluster <command> [--help] 
+
+These are available commands :
+
+book          	    book a node on the CentraleSupelec Metz cluster
+log   	            log on an already booked node
+kill        	    kill a reservation on the CentraleSupelec Metz cluster 
+run                 run a command on an already booked node
+port_forward	    forward a port from a machine you booked to your 
+                    local computer
+
+Note that every command also has its own command you can access with 
+ 
+				cscsluter <command> --help
+
+For example the help for book is provided with   cscluster book --help
+
+If you just issue cscluster --help <command> this will ignore the provided 
+command and throw this help message.
+"
+usage_b="Usage :  cscluster book
+Books a node on the CS Metz clusters
+
+-u, --user <login>          login to connect to CentraleSupelec Metz clusters 
+-m, --machine <machine>     OPTIONAL, a specific machine
+-c, --cluster <cluster>     the cluster (e.g: gpu, cpu, ic)
+-w, --walltime <walltime>   walltime (in HH:MM, default: 24:00)
+-h, --help                  prints this help message
+
+Options specific to clusters handled with SLURM (Kyle):
+-p, --partition <partition> on which partition to book a node
+-n, --ntasks <ntasks>       the number of physical CPUs to be allocated (max 16 per Kyle machines),(default 1)
+-r, --reservation <name>    for the specific reservation name
+"
+
+usage_l="Usage : cscluster log
+Logs to an already booked node on the CentraleSupelec Metz cluster 
+
+-u, --user <login>          login to connect to CentraleSupelec Metz
+-c, --cluster <cluster>     OPTIONAL, the cluster (e.g: gpu, cpu, ic)
+-j, --jobid <JOB_ID>        The JOB_ID to which to connect. If not provided
+a list of your booked JOB_ID will be displayed
+-h, --help                  prints this help message
+
+You must specify either the cluster or the frontal but not both.
+"
+usage_k="usage :  cscluster kill 
+Deletes a reservation on the CentraleSupelec Metz cluster
+
+-u, --user <login>          Login to connect to CentraleSupelec Metz
+-c, --cluster <cluster>     OPTIONAL, the cluster (e.g: gpu, cpu, ic)
+-j, --jobid <JOB_ID>        OPTIONAL The JOB_ID to delete. If not provided
+a list of your booked JOB_ID will be displayed
+-j, --jobid all             Will kill all the jobs booked by <login>
+-h, --help                  Prints this help message
+
+You must specify either the cluster or the frontal but not both.
+"
+usage_r="usage :  cscluster run
+Runs a specific command on the CentraleSupelec Metz cluster
+
+-u, --user <login>          Login to connect to CentraleSupelec Metz
+-k, --kommand <command>      The command to run (c is already used for the cluster)
+-c, --cluster <cluster>     OPTIONAL, the cluster (e.g: gpu, cpu, ic)
+-j, --jobid <JOB_ID>        OPTIONAL The JOB_ID of the job. If not provided
+a list of your booked JOB_ID will be displayed
+-h, --help                  Prints this help message
+
+You must specify either the cluster or the frontal but not both.
+"
+usage_p="usage :  cscluster port_forward
+Forward a port from a machine you booked to your local computer
+
+-u, --user <login>                           login to connect to CentraleSupelec Metz
+-c, --cluster <cluster>                      OPTIONAL, the cluster (e.g: gpu, cpu, ic)
+-j, --jobid <JOB_ID>                         The JOB_ID to which to connect. If not provided
+                                             a list of your booked JOB_ID will be displayed
+-m, --machine <MACHINE>                      The booked hostname.
+-p, --port <PORT>                            The distant port <PORT> will be binded to 127.0.0.1:PORT
+-p, --port <REMOTE_PORT:LOCAL_PORT>          The distant port <REMOTE_PORT> will be binded to 127.0.0.1:LOCAL_PORT
+-k, --key <PATH_TO_KEY>                      Use the provided ssh key for connection
+-h, --help                                   prints this help message
+
+You must specify either the cluster or the frontal but not both.
+"
+
+
+
+GREEN="\033[1;32m"
+NORMAL="\033[0;39m"
+RED="\033[1;31m"
+YELLOW="\033[1;33m"
+BLUE="\033[1;34m"
+MAGENTA="\033[1;35m"
+
+display_info() {
+	echo -e "$BLUE $1 $NORMAL" 1>&2
+}
+display_wait() {
+	echo -ne "$MAGENTA $1 $NORMAL" 1>&2
+}
+display_success() {
+	echo -e "$GREEN $1 $NORMAL" 1>&2
+}
+display_warn() {
+	echo -e "$YELLOW $1 $NORMAL" 1>&2
+}
+display_error() {
+	echo -e "$RED $1 $NORMAL" 1>&2
+}
+
+wait_char() {
+	case $1 in
+		0)
+			echo '|';;
+		1)
+			echo '/';;
+		2)
+			echo '-';;
+		3)
+			echo '\';;
+	esac
+}
+
+# This is the default session name of screen
+# After an allocation with SLURM is successfull,
+# we rename the session with the JOBID and the default_screen_name as prefix
+readonly basic_screen_name=defaultclustersession
+readonly default_screen_name=clustersession
+readonly logdirectory="~/.cscluster/"
+readonly patience_max=10
+
+# Check required softwares are installed
+which awk 2>/dev/null 1>&2 
+if [[ $? != 0 ]]; then
+	display_error "Cannot find required awk"
+	exit 1
+fi
+
+######################################################
+# Main function for setting global variabls 
+# Set Globals:
+#	FRONTAL
+#   ACCESS_NODE
+#   SCHEDULER
+#   all the functions  book, list, ...
+######################################################
+set_globals() { 
+	cluster=$1
+
+	# Handle the cluster bindings setting up the variables FRONTAL and SCHEDULER
+	if [[ -z $cluster ]]; then
+		display_error "The cluster cannot be undefined"
+		exec echo "$usage_m"
+		exit
+	fi
+
+	case $cluster in
+		"gpu"|"cpu"|"ic") ;;
+		*)
+			display_error "The cluster must be one of gpu, cpu, ic"
+			exit;;
+	esac
+
+	case $cluster in
+		"gpu")
+			FRONTAL=chome
+			ACCESS_NODE=chome.metz.supelec.fr
+			;;
+		"cpu")
+			FRONTAL=chome
+			ACCESS_NODE=chome.metz.supelec.fr
+			;;
+		"ic")
+			FRONTAL=ic10.ic
+			ACCESS_NODE=chome.metz.supelec.fr
+			;;
+	esac
+	SCHEDULER=slurm
+
+	# Alias the commands to use the OAR or SLURM ones
+	# so that the following part of the script is scheduler independent
+	case $SCHEDULER in 
+		"oar")
+			display_info "Using OAR"
+			test_job_state=oar_test_job_state
+			book_node=oar_book_node
+			log_node=oar_log_node
+			run_command=oar_run_command
+			list_allocation=oar_list_allocation
+			list_all_jobids=oar_list_all_jobids
+			kill_reservation=oar_kill_reservation
+			get_booked_host=oar_get_booked_host
+			;;
+		"slurm")
+			display_info "Using SLURM"
+			test_job_state=slurm_test_job_state
+			book_node=slurm_book_node
+			log_node=slurm_log_node
+			run_command=slurm_run_command
+			list_allocation=slurm_list_allocation
+			list_all_jobids=slurm_list_all_jobids
+			kill_reservation=slurm_kill_reservation
+			get_booked_host=slurm_get_booked_host
+			;;
+	esac
+}
+
+######################################################
+# Main function for booking
+# Globals:
+#	FRONTAL
+#   MACHINE
+#   WALLTIME
+######################################################
+mainbook() {
+	username=$1
+	cluster=$2
+	machine=$MACHINE
+	walltime=$WALLTIME
+
+	set_globals $cluster
+	frontal=$FRONTAL
+
+	if [ -z $username ]
+	then
+		display_error "A login is required. Specify it with -u|--user, run with -h for help"
+		exec echo "$usage_b"
+		exit
+	fi
+
+	if [ -z $cluster ]
+	then
+		display_error "A cluster must be specified. Specify it with -c|--cluster, run with -h for help"
+		exec echo "$usage_b"
+		exit
+	fi
+
+	msg="Booking a node for $username, on cluster $cluster, frontal $frontal, with walltime $walltime"
+	if [ ! -z $machine ]; then
+		msg="$msg, machine is $machine"
+	fi
+	display_info "$msg"
+
+	# Book a node
+	if [ -z $machine ]
+	then
+		job_id=`$book_node $username $cluster $frontal`
+	else
+		job_id=`$book_node $username $cluster $frontal $machine`
+	fi
+
+	if [[ $? != 0 ]]; then
+		exit
+	fi
+
+	# Ping the reservation and wait until it's Running
+	display_info "Waiting for the reservation $job_id to be running, might last few seconds"
+	wait_cnt=0
+	display_wait "The reservation $job_id is not yet running `wait_char $wait_cnt`"
+	job_state=`$test_job_state $username $job_id $frontal`
+	while [ "$job_state" != "Running" ]
+	do
+		display_wait "The reservation $job_id is not yet running `wait_char $wait_cnt`"
+		wait_cnt=$(( $wait_cnt + 1 ))
+		if [[ $wait_cnt > 3 ]]; then wait_cnt=0; fi
+		job_state=`$test_job_state $username $job_id $frontal`
+		sleep 0.1
+	done
+	display_success "\nThe reservation $job_id is running"
+	
+	echo $job_id
+}
+
+######################################################
+# Check a node is booked and log on it
+# Globals:
+#   usage_l : usage message of the log function
+#   list_allocation : scheduler specific allocation listing function
+#   log_node : scheduler specific logging function
+# Arguments:
+#   username
+#   jobid  : possibly empty string
+######################################################
+mainlog() {
+	username=$1
+	jobid=$2
+	frontal=$FRONTAL
+
+	if [ -z $username ]
+	then
+		display_error "A login is required. Specify it with -u|--user, run with -h for help"
+		exec echo "$usage_l"
+		exit
+	fi
+
+	if [ -z $jobid ]
+	then
+		display_warn "You must specify a machine with -m <MACHINE>  or a job id with -j <JOB_ID>"
+		display_info "Your current reservations are listed below :"
+		disp_allocations $username $frontal
+
+		# If there is at least one jobid, we will use this one
+		allocations=`$list_allocation $username $frontal | tail +2`
+		if [[ "$allocations" == "" ]]; then
+			display_error "There is no running allocations."
+			exit -1
+		else
+			display_info "There is at least one running allocation"
+			jobid=`echo $allocations | awk -F '[[:space:]]' '{print $1}' | head -n 1`
+			display_info "I will use JOBID $jobid"
+		fi
+	fi
+
+	display_info "Logging to the booked node"
+
+	$log_node $username $jobid $frontal
+
+	display_info "Unlogged"
+}
+
+######################################################
+# Kill one or multiple allocations of a user
+# Globals:
+# Arguments:
+#   username
+#   jobid : possibly an empty string
+######################################################
+mainkill() {
+	# Global functions: $list_allocation,  $list_all_jobids
+	# Global variables : $usage_k
+	username=$1
+	jobid=$2
+	frontal=$FRONTAL
+
+	if [ -z $username ]
+	then
+		display_error "A login is required. Specify it with -u|--user, run with -h for help"
+		exec echo "$usage_k"
+		exit
+	fi
+
+	if [[ -z $jobid  &&  "$jobid" != "all" ]]
+	then
+		display_error "No job_id is specified, you must provide one. Call with -h for more help  "
+		display_info "Listing your current reservations"
+		$list_allocation $username $frontal
+		exit
+	fi
+
+	if [[ "$jobid" = "all" ]]
+	then
+		display_info "Collecting all the jobid booked for $username"
+		jobid=`$list_all_jobids $username $frontal`
+	fi
+
+	if [[ -z $jobid ]]
+	then
+		display_info "No job to kill for $username. I'm leaving"
+		display_success "Done"
+		exit
+	fi
+
+	# display_info "Killing the reservation(s) $jobid"
+	for jid in $jobid
+	do
+		$kill_reservation $username $frontal $jid
+	done
+	display_success "Done"
+}
+
+######################################################
+# Execute one command on the remote
+# Globals:
+#   usage_r
+#   list_allocation : function to list the jobids
+#   run_command : function to run a command
+# Arguments:
+#   username
+#   jobid : possibly an empty string
+#   kommand : the command to execute
+######################################################
+mainrun() {
+	local username
+	local jobid
+	local kommand
+	local frontal
+	username=$1
+	jobid=$2
+	kommand=$3
+	frontal=$FRONTAL
+
+	if [ -z $username ]
+	then
+		display_error "A login is required. Specify it with -u|--user, run with -h for help"
+		exec echo "$usage_r"
+		exit
+	fi
+
+	if [ -z $jobid ]
+	then
+		display_warn "No job_id is specified, you must provide one. Call with -h for more help  "
+		display_info "Listing your current reservations"
+		$list_allocation $username $frontal
+
+		# If there is at least one jobid, we will use this one
+		allocations=`$list_allocation $username $frontal | tail +2`
+		if [[ "$allocations" == "" ]]; then
+			display_error "There is no running allocations."
+			exit
+		else
+			display_info "There is at least one running allocation"
+			jobid=`echo $allocations | awk -F '[[:space:]]' '{print $1}' | head -n 1`
+			display_info "I will use jobid $jobid"
+		fi
+	fi
+
+	if [ -z "$kommand" ]
+	then
+		display_error "A command is required. Specify it with -k|--kommand, run with -h for help"
+		exec echo "$usage_r"
+		exit
+	fi
+	display_info "In mainrun2 : $username $jobid $kommand"
+
+	display_info "Running the command \"$kommand\" on the booked node"
+
+	$run_command $username $jobid $frontal "$kommand"
+	display_info "Got the response $res"
+
+	return $?
+}
+
+######################################################
+# Execute vncserver on the remote
+# Globals:
+#   usage_r
+# Arguments:
+#   username
+#   jobid : possibly an empty string
+######################################################
+mainrunvnc() {
+	local username
+	local jobid
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$FRONTAL
+
+	display_info "In mainrun : $username $FRONTAL"
+
+	if [ -z $username ]
+	then
+		display_error "A login is required. Specify it with -u|--user, run with -h for help"
+		exec echo "$usage_r"
+		exit
+	fi
+
+	if [ -z $jobid ]
+	then
+		# If there is at least one jobid, we will use this one
+		allocations=`$list_allocation $username $frontal | tail +2`
+		if [[ "$allocations" == "" ]]; then
+			display_error "There is no running allocations."
+			exit
+		else
+			display_info "There is at least one running allocation"
+			jobid=`echo $allocations | awk -F '[[:space:]]' '{print $1}' | head -n 1`
+			display_info "I will use jobid $jobid"
+		fi
+	fi
+
+	display_info "Running vncserver on the booked node"
+	vnc_portfile="$logdirectory/vnc-$jobid"
+	execute_on_frontal_withtty $username $frontal 'screen -S '$default_screen_name-$jobid' -X stuff '\''vncserver -SecurityTypes None -depth 32 -geometry 1680x1050 -cleanstale 2> /dev/null 1>&2; vncserver -list -cleanstale 2> /dev/null | tail -n +5 >> '$vnc_portfile'^M'\'''
+
+	port=`execute_on_frontal $username $frontal 'cat '$vnc_portfile''`
+	if [ -z "$port" ]; then
+		display_error "No valid vnc server was found"
+		exit 1
+	fi
+	port=`echo $port | awk -F ' ' '{print $1}' | awk -F ':' '{print $2}'`
+	port="$(( $port + 5900 ))"
+	display_info "The vnc server is listening on port :$port"
+
+	echo $port
+}
+
+
+
+######################################################
+# Main of the port forward
+# Globals:
+#   usage_p
+#   list_allocation : function to list the jobids
+#   test_job_state
+#   get_booked_host
+# Arguments:
+#   username
+#   jobid : possibly an empty string
+#   machine : the machine to target
+#   localport : the local port to bind to
+#   remoteport : the port to bind on the remote
+######################################################
+mainportforward() {
+	username=$1
+	jobid=$2
+	machine=$3
+	localport=$4
+	remoteport=$5
+	background_tunnel=$6
+	frontal=$FRONTAL
+
+	if [ -z $username ]
+	then
+		display_error "A login is required. Specify it with -u|--user, run with -h for help"
+		exec echo "$usage_p"	    
+		exit
+	fi
+
+	if [ ! -z $jobid ] && [ ! -z $machine ]
+	then
+		display_error "You cannot specify both a machine and a jobid"
+		exit -1
+	fi
+	if [ -z $jobid ] && [ -z $machine ]
+	then
+		display_warn "You must specify a machine with -m <machine>  or a job id with -j <JOB_ID>"
+		display_info "Your current reservations are listed below :"
+		disp_allocations $username $frontal
+
+		# If there is at least one jobid, we will use this one
+		allocations=`$list_allocation $username $frontal | tail +2`
+		if [[ "$allocations" == "" ]]; then
+			display_error "There is no running allocations."
+			exit -1
+		else
+			display_info "There is at least one running allocation"
+			jobid=`echo $allocations | awk -F '[[:space:]]' '{print $1}' | head -n 1`
+			display_info "I will use jobid $jobid"
+		fi
+	fi
+
+	if [ -z $localport ]
+	then
+		display_error "A port is required. Specify it with -p|--port, run with -h for help"
+		exec echo "$usage_p"
+		exit -1
+	fi
+
+
+	if [ ! -z $machine ]
+	then
+		host=$machine
+	else
+		# Check the status of the job
+		display_info "Checking the status of the reservation jobid=$jobid"
+		job_state=`$test_job_state $username $jobid $frontal`
+		if [ "$job_state" != "Running" ]; then
+			display_error "   The reservation is not running yet or anymore. Please book a machine"
+			exit -1
+		fi
+		display_success "   The reservation $jobid is still running"
+		# Request the hostname
+		host=`$get_booked_host $username $frontal $jobid`
+	fi
+
+	if [ -z $host ]
+	then
+		display_error "Error while trying to get the booked hostname"
+		exit -1
+	fi
+
+	make_port_forward $username "$localport" "$remoteport" $host $frontal $background_tunnel
+}
+
+######################################################
+# Main
+# Globals:
+# Arguments:
+#   username
+#   jobid : possibly an empty string
+######################################################
+main() {
+	# Let us parse the first level of commands
+	if [[ $# -eq 0 ]]; then
+		exec echo "$usage_m"
+	fi
+
+	key="$1"
+	case $key in 
+		"book")
+			ACTION="book"
+			shift # pass argument
+			;;
+		"test")
+			ACTION="test"
+			shift # pass argument
+			;;
+		"log")
+			ACTION="log"
+			shift # pass argument
+			;;
+		"run")
+			ACTION="run"
+			shift # pass argument
+			;;
+		"kill")
+			ACTION="kill"
+			shift # pass argument
+			;;
+		"port_forward")
+			ACTION="port_forward"
+			shift # pass argument
+			;;
+		-h|--help)
+			exec echo "$usage_m";;
+		*)
+			display_error "Unrecognized option $key"
+			exec echo "$usage_m";;
+	esac
+
+	# For every single action, call its specific commands
+	case $ACTION in
+		"book")
+			# Parse the command line arguments
+			USER=
+			MACHINE=
+			CLUSTER=
+			WALLTIME="24:00"
+			SSHKEY=
+			QUEUE=default
+			SCHEDULER=
+
+			# SLURM specific options
+			SLURM_PARTITION=
+			SLURM_NTASKS=1
+			SLURM_RESERVATION=
+
+			while [[ $# -gt 0 ]]
+			do
+				key="$1"
+				case $key in
+					-u|--user)
+						USER="$2"
+						shift # pass argument
+						shift # pass value
+						;;
+					-m|--machine)
+						MACHINE="$2"
+						shift
+						shift
+						;;
+					-c|--cluster)
+						CLUSTER="$2"
+						shift
+						shift
+						;;
+					-w|--walltime)
+						WALLTIME="$2"
+						shift
+						shift
+						;;
+					-p|--partition)
+						SLURM_PARTITION="$2"
+						shift
+						shift
+						;;
+					-n|--ntasks)
+						SLURM_NTASKS="$2"
+						shift
+						shift
+						;;
+					-r|--reservation)
+						SLURM_RESERVATION="$2"
+						shift
+						shift
+						;;
+					-h|--help)
+						exec echo "$usage_b";;
+					*)
+						exec echo "Unrecognized option $key"
+				esac
+			done
+			;;
+
+		"log")
+			# Parse the command line arguments
+			USER=
+			JOBID=
+			SSHKEY=
+			SCHEDULER=
+
+			while [[ $# -gt 0 ]]
+			do
+				key="$1"
+				case $key in
+					-u|--user)
+						USER="$2"
+						shift # pass argument
+						shift # pass value
+						;;
+					-c|--cluster)
+						CLUSTER="$2"
+						shift
+						shift
+						;;
+					-j|--jobid)
+						JOBID="$2"
+						shift
+						shift
+						;;
+					-h|--help)
+						exec echo "$usage_l";;
+					*)
+						exec echo "Unrecognized option $key"
+				esac
+			done
+			;;
+
+		"kill")
+			# Parse the command line arguments
+			USER=
+			JOBID=
+			SSHKEY=
+			SCHEDULER=
+
+			while [[ $# -gt 0 ]]
+			do
+				key="$1"
+				case $key in
+					-u|--user)
+						USER="$2"
+						shift # pass argument
+						shift # pass value
+						;;
+					-c|--cluster)
+						CLUSTER="$2"
+						shift
+						shift
+						;;
+					-j|--jobid)
+						JOBID="$2"
+						shift
+						shift
+						;;
+					-h|--help)
+						exec echo "$usage_k";;
+					*)
+						exec echo "Unrecognized option $key"
+				esac
+			done
+			;;
+
+		"run")
+
+			# Parse the command line arguments
+			USER=
+			KOMMAND=
+			CLUSTER=
+			JOBID=	
+
+			while [[ $# -gt 0 ]]
+			do
+				key="$1"
+				case $key in
+					-u|--user)
+						USER="$2"
+						shift # pass argument
+						shift # pass value
+						;;
+					-k|--kommand)
+						KOMMAND="$2"
+						shift 
+						shift
+						;;
+					-c|--cluster)
+						CLUSTER="$2"
+						shift
+						shift
+						;;
+					-j|--jobid)
+						JOBID="$2"
+						shift
+						shift
+						;;
+					-h|--help)
+						exec echo "$usage_r";;
+					*)
+						exec echo "Unrecognized option $key"
+				esac
+			done
+			;;
+
+		"port_forward")
+			# Parse the command line arguments
+			USER=
+			JOBID=
+			MACHINE=
+			PORT=
+			SSHKEY=
+			SCHEDULER=
+			BACKGROUND_TUNNEL=0
+
+			while [[ $# -gt 0 ]]
+			do
+				key="$1"
+				case $key in
+					-u|--user)
+						USER="$2"
+						shift # pass argument
+						shift # pass value
+						;;
+					-c|--cluster)
+						CLUSTER="$2"
+						shift
+						shift
+						;;
+					-j|--jobid)
+						JOBID="$2"
+						shift
+						shift
+						;;
+					-m|--machine)
+						MACHINE="$2"
+						shift
+						shift
+						;;
+					-p|--port)
+						PORT="$2"
+						REMOTE_PORT=`echo $PORT | awk -F ":" '{print $1}'`
+						LOCAL_PORT=`echo $PORT | awk -F ":" '{print $2}'`
+						if [ -z "$LOCAL_PORT" ]; then
+							LOCAL_PORT=$REMOTE_PORT
+						fi
+						shift
+						shift
+						;;
+					-k|--key)
+						SSHKEY="$2"
+						shift
+						shift
+						;;
+					--background)
+						BACKGROUND_TUNNEL="1"
+						shift
+						;;
+					-h|--help)
+						exec echo "$usage_p";;
+					*)
+						exec echo "Unrecognized option $key"
+				esac
+			done
+
+			;;
+	esac
+
+	set_globals "$CLUSTER"
+
+	# For bouncing over the proxy
+	ssh_options="-o ProxyCommand=ssh $SSHKEY_COMMAND -W %h:%p $USER@$ACCESS_NODE"
+
+	# For every single action, call its specific commands
+	case $ACTION in
+
+		"book")
+			mainbook "$USER" "$CLUSTER"
+			;;
+		"log")
+			mainlog "$USER" "$JOBID"
+			;;
+
+		"kill")
+			mainkill "$USER" "$JOBID"
+			;;
+		"run")
+			display_info "Go the args $USER $JOBID $KOMMAND"
+			mainrun "$USER" "$JOBID" "$KOMMAND"
+			;;
+		"port_forward")
+			mainportforward "$USER" "$JOBID" "$MACHINE" "$LOCAL_PORT" "$REMOTE_PORT" "$BACKGROUND_TUNNEL"
+			;;
+	esac
+}
+
+###############################################################################
+#### OAR ######################################################################
+###############################################################################
+
+# test_job_state job_id
+# returns
+oar_test_job_state ()
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$3
+	execute_on_frontal $username $frontal "oarstat -s -j $jobid" | awk -F ": " '{print $NF}' -
+}
+
+# book_node properties
+oar_book_node ()
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$3
+
+	display_info "In book node"
+	if [ "$#" == 1 ]; then
+		oar_props="cluster='$1'"
+	else
+		oar_props="(cluster='$1' and host='$2')"
+	fi
+	execute_on_frontal $username $frontal "oarsub -q $QUEUE -r \"$(date +'%F %T')\" -p \"$oar_props\" -l nodes=1,walltime=$WALLTIME:00" > reservation.log
+
+	# Check the status of the reservation
+	resa_status=`cat reservation.log | grep "Reservation valid" | awk -F "--> " '{print $NF}' -`
+	if [ "$resa_status" == "OK" ]
+	then
+		display_success "Reservation successfull"
+	else
+		display_error "Reservation failed"
+
+		display_error "Check disponibility here: http://www.lsi.metz.supelec.fr/grid/drawgantt/"
+		display_error "Make sure that the requested cluster belongs to the requested frontal "
+		exit
+	fi
+
+	job_id=`cat reservation.log | grep OAR_JOB_ID | awk -F "=" '{ print $2}' -`
+	display_info "Booking requested : OAR_JOB_ID = $job_id"
+	echo $job_id
+}
+
+oar_log_node ()
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$3
+	display_info "I am checking if the reservation $jobid is still valid"
+	job_state=`$test_job_state $jobid`
+	if [ "$job_state" != "Running" ]; then
+		display_error "   The reservation is not running yet or anymore."
+		display_error "   please select a valid job id"
+		$list_allocation $username $frontal
+		exit 1
+	fi
+
+	display_success "   The reservation $jobid is still running"
+	execute_on_frontal_withtty "$username" "$frontal" "oarsub -C $jobid"
+}
+
+oar_run_command()
+{
+	local username
+	local jobid
+	local frontal
+	local kommand
+	username=$1
+	jobid=$2
+	frontal=$3
+	kommand=$4
+
+	display_error "The run_command is not yet implemented for OAR"
+}
+
+oar_list_allocation ()
+{
+	local username
+	local frontal
+	username=$1
+	frontal=$2
+	echo "Job id     Name           User           Submission Date     S Queue     "
+	execute_on_frontal $username $frontal "oarstat -u $username | tail -n +3"
+}
+
+oar_list_all_jobids()
+{
+	local username
+	local frontal
+	username=$1
+	frontal=$2
+	echo `oar_list_allocation $username $frontal | tail +2 | awk '{print $1}' | tr '\n' ' '`
+}
+
+# oar_kill_reservation jobid 
+oar_kill_reservation ()
+{
+	local username
+	local frontal
+	local jobid
+	username=$1
+	frontal=$2
+	jobid=$3
+	display_info "Killing the reservation $jobid"
+	execute_on_frontal $username $frontal "oardel $jobid"
+}
+
+# get_booked_host job_id
+oar_get_booked_host ()
+{
+	local username
+	local frontal
+	username=$1
+	frontal=$2
+	execute_on_frontal $username $frontal "oarstat -f -j $username " | grep assigned_hostnames | awk -F " = " '{print $NF}'
+}
+
+###############################################################################
+#### SLURM ####################################################################
+###############################################################################
+# book_node properties
+
+# test_job_state job_id
+# returns "Running" or ""
+slurm_test_job_state ()
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$3
+	jobstates=`execute_on_frontal $username $frontal "squeue -j $jobid" 2>/dev/null | tail -n +2 | awk '{print $5}' -`
+	# To be matched against R : running, CG : completing, etc...
+	if [[ $jobstates == "R" ]]; then
+		echo "Running"
+	else
+		echo 
+	fi
+}
+
+# slurm_book_node CLUSTER <MACHINE>
+slurm_book_node ()
+{
+	local username
+	local cluster
+	local frontal
+	local machine
+	local partition
+	username=$1
+	cluster=$2
+	frontal=$3
+	machine=$4
+	partition=$SLURM_PARTITION
+
+	if [[ -z $partition && -z $SLURM_RESERVATION ]]; then
+		display_error "You must specify either a partition or reservation name"
+		display_error "for the cluster"
+		display_info "For the partitions, the possible values are given below"
+		execute_on_frontal $username $frontal "sinfo" 1>&2
+		return 1
+	fi
+	if [[ ! -z $partition && ! -z $SLURM_RESERVATION ]]; then
+		display_error "You cannot specify both partition and reservation"
+		return 1
+	fi
+
+	# Create the directory in which we will save our log files
+	execute_on_frontal $username $frontal "mkdir -p ~/.cscluster/"
+
+	# Kill a screen session with default name if it exists already
+	execute_on_frontal $username $frontal "screen -S $basic_screen_name -X kill 1> /dev/null"
+
+	# Create screen session on the frontal node in detached mode (-d -m)
+	execute_on_frontal $username $frontal "screen -d -m -S $basic_screen_name & echo \$! > $logdirectory/screen_pid.log; sync"
+
+	# screen_pid=`execute_on_frontal "screen -ls | grep $basic_screen_name | awk '{print \$1}' | cut -d'.' -f1"`
+	screen_pid=`execute_on_frontal $username $frontal "screen -ls | grep $basic_screen_name" | awk '{print \$1}' | cut -d'.' -f1`
+	display_info "Got a screen session with PID $screen_pid"
+
+	WALLTIME="$WALLTIME:00"
+
+	# Create the script to kill the screen session on slurm epilog
+	cat <<EOF | ssh "$ssh_options" $USER@$FRONTAL "cat - > /tmp/kill_screen_$screen_pid"
+#!/bin/bash
+
+# Kill the screen session
+kill $screen_pid
+
+# Remove the logfile
+rm -f $logdirectory/resa-$screen_pid.log
+
+# Remove this script
+rm /tmp/kill_screen_$screen_pid
+EOF
+	# Make the kill script runnable
+	execute_on_frontal $username $frontal "chmod u+x /tmp/kill_screen_$screen_pid"
+
+	# Book a node within the screen session byobu
+	# SRUN_EPILOG="kill -9 $screen_pid"
+	SRUN_EPILOG="/tmp/kill_screen_$screen_pid"
+	slurm_cmd="'srun -N 1 --epilog=\"$SRUN_EPILOG\" "
+	if [[ ! -z "$WALLTIME" ]]; then
+		slurm_cmd="$slurm_cmd -t '$WALLTIME'"
+   	fi
+	if [[ ! -z $partition ]]; then
+		slurm_cmd="$slurm_cmd -p '$partition'"
+	fi
+	if [[ ! -z $SLURM_RESERVATION  ]]; then
+		slurm_cmd="$slurm_cmd --reservation '$SLURM_RESERVATION'"
+	fi
+	if [[ -z "$machine" ]]; then
+		# Book a node with the given partition
+		slurm_cmd="$slurm_cmd --ntasks-per-node '$SLURM_NTASKS'"
+	else
+		# Book a specific node on a specific partition
+		slurm_cmd="$slurm_cmd --nodelist=$machine"
+	fi
+	slurm_cmd="$slurm_cmd --pty bash^M'"
+	display_info "Command : $slurm_cmd"
+
+	# We inject the slurm command in the screen session
+	# Note it may take some times to be executed, hence the code afterwhile
+	# for checking a specific file has been created to certify 
+	# the slurm command was ran successfully
+	execute_on_frontal $username $frontal "screen -S $basic_screen_name -X stuff $slurm_cmd"
+
+	# Save the SLURM_JOBID in ~/resa-$screen_pid.log
+	resalogfile="$logdirectory/resa-$screen_pid.log"
+	execute_on_frontal_withtty $username $frontal 'screen -S '$basic_screen_name' -X stuff '\''rm -f '$resalogfile'; sync ^M'\'''
+	execute_on_frontal_withtty $username $frontal 'screen -S '$basic_screen_name' -X stuff '\''echo \$SLURM_JOBID > '$resalogfile'; sync ^M'\'''
+
+	# Wait for the file resalogfile to exist
+	# If it does not exist after some times with a valid jobid, 
+	# the allocation probably failed.
+
+
+	# And use it to rename the screen session to have easy binding between
+	# the slurm jobid and the screen session name
+	patience_cnt=0
+	display_info "Waiting for the scheduler to handle your request. May last $patience_max seconds"
+	job_id=`execute_on_frontal $username $frontal 'cat '$resalogfile'' 2> /dev/null`
+	while [ -z $job_id ]; do
+		patience_cnt=$(( $patience_cnt + 1 ))
+		if (( $patience_cnt > $patience_max )); then 
+			display_error "The scheduler does not accept your reservations. Check your provided options."
+			# We must kill the screen session
+			execute_on_frontal $username $frontal "screen -S $basic_screen_name -X kill"
+			execute_on_frontal $username $frontal "rm -f $SRUN_EPILOG $resalogfile"
+			return 1
+		fi
+		sleep 1
+		job_id=`execute_on_frontal $username $frontal 'cat '$resalogfile'' 2> /dev/null`
+	done
+
+	if [ -z $job_id ]
+	then
+		display_error "Something went wrong in the reservation, I cannot get the jobid from the cluster. Check your provided options."
+		# We must kill the screen session
+		execute_on_frontal $username $frontal "screen -S $basic_screen_name -X kill"
+		execute_on_frontal $username $frontal "rm -f $SRUN_EPILOG $resalogfile"
+		return 1
+	fi
+
+	display_success "Reservation $job_id successfull"
+
+	# Complete the epilog file to remove the log files that might
+	# be generated during the session
+	cat <<EOF | ssh "$ssh_options" $USER@$FRONTAL "cat - >> /tmp/kill_screen_$screen_pid"
+
+# Remove the possibly generated logfiles
+rm -f $logdirectory/*-$job_id*
+EOF
+
+	execute_on_frontal_withtty $username $frontal 'screen -S '$basic_screen_name' -X sessionname '$default_screen_name'-'$job_id
+
+	# Check if the screen session is correctly created
+	exit_code=`execute_on_frontal $username $frontal 'screen -list | grep -q '$default_screen_name-$job_id'; echo $?' 2> /dev/null`
+	if [[ $exit_code != 0 ]]; then
+		display_error "Something went wrong in the reservation, there is no screen session named $default_screen_name-$job_id"
+		# We kill the default session since it might still exist
+		execute_on_frontal $username $frontal "screen -S $basic_screen_name -X kill"
+		execute_on_frontal $username $frontal "rm -f $SRUN_EPILOG $resalogfile"
+		return 1
+	else
+		display_success "Screen session $default_screen_name-$job_id created"
+	fi
+
+	echo $job_id
+}
+
+slurm_log_node() 
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$3
+
+	execute_on_frontal_withtty $username $frontal "screen -rd $default_screen_name-$jobid"
+
+	exit_code=$?
+	if [ "$exit_code" != "0" ]; then
+		display_error "The logging command failed"
+		display_info "If this is a 'There is no screen session ..', check your jobid is in the following list"
+		$list_allocation $username $frontal
+		return 1
+	fi
+}
+
+slurm_run_command() 
+{
+	local username
+	local jobid
+	local kommand
+	local frontal
+	username=$1
+	jobid=$2
+	frontal=$3
+	kommand=$4
+
+	display_info "Running the command $kommand within the screen $default_screen_name-$jobid"
+	execute_on_frontal_withtty $username $frontal 'screen -S '$default_screen_name-$jobid' -X stuff '\'$kommand'^M'\'''
+}
+
+slurm_list_allocation ()
+{
+	local username
+	local frontal
+	username=$1
+	frontal=$2
+	execute_on_frontal $username $frontal "squeue -u $username"
+}
+
+slurm_list_all_jobids ()
+{
+	local username
+	local frontal
+	username=$1
+	frontal=$2
+	jobids=`slurm_list_allocation $username $frontal`
+	echo `slurm_list_allocation $username $frontal | tail +2 | awk '{print $1}' | tr '\n' ' '`
+}
+
+# slurm_kill_reservation jobid
+slurm_kill_reservation () 
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	frontal=$2
+	jobid=$3
+	display_info "Killing the reservation $jobid"
+	execute_on_frontal $username $frontal "scancel $jobid"
+	execute_on_frontal $username $frontal "screen -S $default_screen_name-$jobid -X kill"
+}
+
+slurm_get_booked_host () 
+{
+	local username
+	local jobid
+	local frontal
+	username=$1
+	frontal=$2
+	jobid=$3
+	node=`execute_on_frontal $username $frontal "squeue -j $jobid" 2>/dev/null | tail -n +2 | awk '{print $8}' -`
+	if [ -z $node ]; then
+		display_error "Failed to retrieve the node for the reservation $jobid. Is it still running ?".
+		display_info "Check your jobid is in the following list of your reservations"
+		$list_allocation $username $frontal
+		return 1
+	fi
+	echo $node
+}
+
+###################################
+# Util function to display the allocations in stderr basically
+###################################
+disp_allocations () {
+	local username
+	local frontal
+	username=$1
+	frontal=$2
+	outresa=`$list_allocation $username $frontal`
+	display_info "$outresa"
+}
+
+
+######################################################
+# Util to get the piece of command line if using a specific ssh key file
+######################################################
+get_sshkey_command () {
+	local sshkey
+	sshkey=$1
+
+	SSHKEY_COMMAND=
+	if [ ! -z $sshkey ]
+	then
+		display_info "I will use the file $sshkey as ssh key for the connection"
+		if [ ! -f $sshkey ]
+		then
+			display_error "The provided file $sshkey does not exist."
+			exit 1
+		fi
+		# Ok, the file exists, we need to check the permissions are 600
+		permissions=`stat -c %a $SSHKEY`
+		if [ ! $permissions == 600 ]
+		then
+			display_error "The provided ssh key has permissions $permissions"
+			display_error "but must have permissions 600. Executing the following should make it :"
+			display_error "chmod 600 $SSHKEY"
+			exit 1
+		fi
+		SSHKEY_COMMAND="-i $SSHKEY"
+	fi
+	echo $SSHKEY_COMMAND
+}
+
+######################################################
+# Make the port forward
+# Globals:
+#	ACCESS_NODE
+#   SSHKEY
+# Arguments
+#   username
+#   localport
+#   remoteport
+#   host
+######################################################
+make_port_forward () 
+{
+	local username
+	local localport
+	local remoteport
+	local host
+	local frontal
+	local background_tunnel
+	username=$1
+	localport=$2
+	remoteport=$3
+	host=$4
+	frontal=$5
+	background_tunnel=$6
+	access_node=$ACCESS_NODE
+	sshkey=$SSHKEY
+
+	sshkey_command=`get_sshkey_command $sshkey`
+	ssh_options_node="-o ProxyCommand=ssh $sshkey_command -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p \"-o ProxyCommand=ssh $sshkey_command -W %h:%p $username@$access_node\" $username@$frontal"
+
+	display_info "Activating port forwarding from host $host:$remoteport to 127.0.0.1:$localport"
+	if [[ "${background_tunnel}" == "1" ]]; then
+		ssh $sshkey_command "$ssh_options_node" -N -L $localport:127.0.0.1:$remoteport $username@$host $tunnel_cmd &
+		echo $!
+	else
+		ssh $sshkey_command "$ssh_options_node" -N -L $localport:127.0.0.1:$remoteport $username@$host $tunnel_cmd 
+	fi
+}
+
+######################################################
+# Run a command on a host
+# Globals:
+#	ACCESS_NODE
+#   SSHKEY
+######################################################
+execute_on_frontal ()
+{
+	local username
+	local kommand
+	local frontal
+	username=$1
+	frontal=$2
+	kommand=$3
+	access_node=$ACCESS_NODE
+	sshkey=$SSHKEY
+
+	sshkey_command=`get_sshkey_command $sshkey`
+	ssh_options="-o ProxyCommand=ssh $sshkey_command -W %h:%p $username@$access_node"
+	ssh "$ssh_options" $username@$frontal $kommand
+}
+
+######################################################
+# Run a command on a host
+# Globals:
+#	ACCESS_NODE
+#   SSHKEY
+######################################################
+execute_on_frontal_withtty ()
+{
+	local username
+	local kommand
+	local frontal
+	username=$1
+	frontal=$2
+	kommand=$3
+	access_node=$ACCESS_NODE
+	sshkey=$SSHKEY
+
+	sshkey_command=`get_sshkey_command $sshkey`
+	ssh_options="-o ProxyCommand=ssh $sshkey_command -W %h:%p $username@$access_node"
+	ssh "$ssh_options" -t $username@$frontal $kommand
+}
+
+if [ "${1}" != "--source-only" ]; then
+    main "${@}"
+fi
+

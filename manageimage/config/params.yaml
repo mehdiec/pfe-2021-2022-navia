@@ -1,0 +1,9 @@
+image_segmentation:
+  ros__parameters:
+    host : 'localhost'
+    port : 6008
+    jpeg_quality : 50
+    resize : 1.0
+    encoder : 'cv2'
+    input_topic : 'anafi/image_raw'
+    output_topic : 'anafi/segmented_image'

@@ -1,0 +1,45 @@
+### Meeting du 15/12/2021
+
+Tutos ROS : Publisher/subscribers en python, services. Custom messages.
+A regarder : remap de topics, parametres, launch files
+A regader : cmd_vel
+
+A regarder : joy téléop sous ros2.
+Contrôle du drone : Deadman Button !
+
+Regarder ros bags
+
+
+
+
+
+Driver ros Anafi :
+
+anafi/takeoff (Empty) : décolle le drone
+anafi/land (Empty) : Atterrir.
+
+anafi/image_raw (ou autre)
+anafi/angular_speed (scalaire) : vitesse angulaire autour des z.
+anafi/linear_z_speed (scalaire) : vitesse lineaire... accélération ?
+anafi/attitude (inclinaison en x, en y).
+
+anafi/odom : mesure de vitesse du drone (voir en ros les messages d'odometrie)
+
+Gerer les paramètres : maxtilt : le drone reçoit une commande ete -100,100 et s'incline entre [-maxtilt, maxtilt]
+... voir la doc du drone (olympe)
+
+Warning : sur le git, et vous nous montrez.
+
+
+
+
+Pour le contrôle du drone : olympe. Voir les exemples que HFB posera sur le git.
+
+### Meeting du 19/01/2021
+
+Faire des packages séparés : un pour le anafi, l'autre pour navia
+
+Utilisez les exemples comme source de copier-coller, mais ne les modifiez pas pour les inclure dans votre travail. Faites comme si vous recommenciez from scratch. Ex: anafi_Utils... non.
+
+Package ROS à rationnaliser : 1 seul client anafi/olympe, indépendant du joystick.
+On fait uns spec au tableau.
